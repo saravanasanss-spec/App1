@@ -45,7 +45,13 @@
             <div id="menuTab" class="tab-content active">
                 <div class="section-header">
                     <h2>Manage Menu Items</h2>
-                    <button class="btn btn-primary" id="addItemBtn">Add New Item</button>
+                    <div class="header-actions">
+                        <label for="csvUpload" class="btn btn-success" style="cursor: pointer; margin-right: 10px;">
+                            📄 Upload CSV
+                        </label>
+                        <input type="file" id="csvUpload" accept=".csv" style="display: none;">
+                        <button class="btn btn-primary" id="addItemBtn">Add New Item</button>
+                    </div>
                 </div>
 
                 <div class="menu-list" id="menuList">
@@ -102,9 +108,26 @@
                     <label for="itemName">Item Name:</label>
                     <input type="text" id="itemName" required>
 
-                    <label for="itemImage">Image URL:</label>
-                    <input type="text" id="itemImage" placeholder="Enter image URL from any website">
-                    <small>You can use images from Unsplash, Pexels, or any website. Example: https://images.unsplash.com/photo-...</small>
+                    <label>Image:</label>
+                    <div class="image-upload-section">
+                        <div class="image-upload-options">
+                            <div class="upload-option">
+                                <label for="imageFile" class="upload-label">
+                                    <span class="upload-icon">📁</span>
+                                    Upload Image
+                                </label>
+                                <input type="file" id="imageFile" accept="image/*" style="display: none;">
+                            </div>
+                            <div class="upload-divider">OR</div>
+                            <div class="url-option">
+                                <label for="itemImage">Enter Image URL:</label>
+                                <input type="text" id="itemImage" placeholder="https://example.com/image.jpg">
+                            </div>
+                        </div>
+                        <div class="image-preview" id="imagePreview">
+                            <p class="preview-placeholder">No image selected</p>
+                        </div>
+                    </div>
 
                     <label for="itemPrice">Default Price (₹):</label>
                     <input type="number" id="itemPrice" step="0.01" min="0" required>
@@ -118,7 +141,13 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <script src="js/firebase-config.js"></script>
     <script src="js/storage.js"></script>
+    <script src="js/cloud-storage.js"></script>
     <script src="js/admin.js"></script>
 </body>
 </html>

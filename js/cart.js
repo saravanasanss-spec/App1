@@ -146,11 +146,29 @@ const Cart = {
             total: total
         };
 
-        Storage.addTransaction(transaction);
-        Storage.clearCart();
-        this.renderCart();
-        this.closePaymentModal();
-        alert('Payment confirmed! Transaction saved.');
+        // Use cloud storage if available, otherwise localStorage
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+            CloudStorage.addTransaction(transaction).then(() => {
+                Storage.clearCart();
+                this.renderCart();
+                this.closePaymentModal();
+                alert('Payment confirmed! Transaction saved to cloud.');
+            }).catch(error => {
+                console.error('Error saving transaction:', error);
+                // Fallback to localStorage
+                Storage.addTransaction(transaction);
+                Storage.clearCart();
+                this.renderCart();
+                this.closePaymentModal();
+                alert('Payment confirmed! Transaction saved locally.');
+            });
+        } else {
+            Storage.addTransaction(transaction);
+            Storage.clearCart();
+            this.renderCart();
+            this.closePaymentModal();
+            alert('Payment confirmed! Transaction saved.');
+        }
     },
 
     printBill() {

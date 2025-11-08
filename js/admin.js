@@ -6,6 +6,7 @@ const Admin = {
     currentFilter: null,
     dateRangeFilter: { from: null, to: null },
     menuItemFilter: null,
+    uploadedImageData: null,
 
     init() {
         this.checkAuth();
@@ -35,7 +36,7 @@ const Admin = {
         document.getElementById('adminPanel').style.display = 'block';
         this.isAuthenticated = true;
         this.renderMenu();
-        this.renderReports();
+        this.renderReports().catch(console.error);
     },
 
     authenticate() {
@@ -80,6 +81,13 @@ const Admin = {
             this.saveItem();
         });
 
+        // Image upload handling
+        document.getElementById('imageFile').addEventListener('change', (e) => this.handleImageUpload(e));
+        document.getElementById('itemImage').addEventListener('input', (e) => this.handleImageUrl(e));
+
+        // CSV upload handling
+        document.getElementById('csvUpload').addEventListener('change', (e) => this.handleCsvUpload(e));
+
         // Reports
         document.getElementById('filterMenuItemBtn').addEventListener('click', () => this.filterByMenuItem());
         document.getElementById('filterBtn').addEventListener('click', () => this.filterReports());
@@ -92,7 +100,7 @@ const Admin = {
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
             document.getElementById('menuItemFilter').value = '';
-            this.renderReports();
+            this.renderReports().catch(console.error);
         });
 
         // Close modals
@@ -141,6 +149,7 @@ const Admin = {
         // Populate menu items when switching to reports tab
         if (tabName === 'reports') {
             this.populateMenuItemFilter();
+            this.renderReports().catch(console.error);
         }
     },
 
@@ -196,6 +205,11 @@ const Admin = {
         const form = document.getElementById('itemForm');
         const title = document.getElementById('modalTitle');
 
+        // Reset image upload
+        this.uploadedImageData = null;
+        document.getElementById('imageFile').value = '';
+        this.updateImagePreview(null);
+
         if (itemId) {
             // Edit mode
             this.currentEditId = itemId;
@@ -205,6 +219,8 @@ const Admin = {
                 document.getElementById('itemImage').value = item.image;
                 document.getElementById('itemPrice').value = item.defaultPrice;
                 title.textContent = 'Edit Menu Item';
+                // Show existing image preview
+                this.updateImagePreview(item.image);
             }
         } else {
             // Add mode
@@ -219,12 +235,70 @@ const Admin = {
     closeItemModal() {
         document.getElementById('itemModal').classList.remove('show');
         document.getElementById('itemForm').reset();
+        document.getElementById('imageFile').value = '';
+        this.uploadedImageData = null;
+        this.updateImagePreview(null);
         this.currentEditId = null;
+    },
+
+    handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file!');
+            event.target.value = '';
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size should be less than 5MB!');
+            event.target.value = '';
+            return;
+        }
+
+        // Clear URL input when file is selected
+        document.getElementById('itemImage').value = '';
+
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            this.uploadedImageData = e.target.result;
+            this.updateImagePreview(this.uploadedImageData);
+        };
+        reader.onerror = () => {
+            alert('Error reading image file!');
+            event.target.value = '';
+        };
+        reader.readAsDataURL(file);
+    },
+
+    handleImageUrl(event) {
+        const url = event.target.value.trim();
+        if (url) {
+            // Clear uploaded image when URL is entered
+            this.uploadedImageData = null;
+            document.getElementById('imageFile').value = '';
+            this.updateImagePreview(url);
+        } else {
+            this.updateImagePreview(null);
+        }
+    },
+
+    updateImagePreview(imageSrc) {
+        const preview = document.getElementById('imagePreview');
+        if (imageSrc) {
+            preview.innerHTML = `<img src="${imageSrc}" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px;">`;
+        } else {
+            preview.innerHTML = '<p class="preview-placeholder">No image selected</p>';
+        }
     },
 
     saveItem() {
         const name = document.getElementById('itemName').value.trim();
-        const image = document.getElementById('itemImage').value.trim();
+        const imageUrl = document.getElementById('itemImage').value.trim();
         const price = parseFloat(document.getElementById('itemPrice').value);
 
         if (!name || !price || price < 0) {
@@ -232,18 +306,24 @@ const Admin = {
             return;
         }
 
+        // Use uploaded image if available, otherwise use URL, otherwise use placeholder
+        let finalImage = this.uploadedImageData || imageUrl;
+        if (!finalImage) {
+            finalImage = 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop';
+        }
+
         if (this.currentEditId) {
             // Update existing item
             Storage.updateMenuItem(this.currentEditId, {
                 name: name,
-                image: image || 'https://via.placeholder.com/200x150?text=' + encodeURIComponent(name),
+                image: finalImage,
                 defaultPrice: price
             });
         } else {
             // Add new item
             Storage.addMenuItem({
                 name: name,
-                image: image || 'https://via.placeholder.com/200x150?text=' + encodeURIComponent(name),
+                image: finalImage,
                 defaultPrice: price
             });
         }
@@ -270,14 +350,156 @@ const Admin = {
         }
     },
 
-    // Reports
-    renderReports() {
-        this.renderReportSummary();
-        this.renderTransactions();
+    handleCsvUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.name.endsWith('.csv')) {
+            alert('Please select a CSV file!');
+            event.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const csv = e.target.result;
+                const items = this.parseCSV(csv);
+                
+                if (items.length === 0) {
+                    alert('No valid items found in CSV file!');
+                    event.target.value = '';
+                    return;
+                }
+
+                // Ask user if they want to replace or append
+                const action = confirm(
+                    `Found ${items.length} item(s) in CSV.\n\n` +
+                    `Click OK to ADD these items to existing menu.\n` +
+                    `Click Cancel to REPLACE all existing items.`
+                );
+
+                if (action) {
+                    // Append items
+                    items.forEach(item => {
+                        Storage.addMenuItem(item);
+                    });
+                    alert(`Successfully added ${items.length} item(s) to menu!`);
+                } else {
+                    // Replace all items
+                    if (confirm('Are you sure you want to replace ALL existing menu items? This cannot be undone!')) {
+                        Storage.saveMenuItems(items.map((item, index) => ({
+                            id: (Date.now() + index).toString() + Math.random().toString(36).substr(2, 9),
+                            name: item.name,
+                            image: item.image || 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop',
+                            defaultPrice: parseFloat(item.defaultPrice) || 0
+                        })));
+                        alert(`Successfully replaced menu with ${items.length} item(s)!`);
+                    } else {
+                        event.target.value = '';
+                        return;
+                    }
+                }
+
+                this.renderMenu();
+                this.populateMenuItemFilter();
+            } catch (error) {
+                alert('Error reading CSV file: ' + error.message);
+                console.error(error);
+            }
+            event.target.value = '';
+        };
+
+        reader.onerror = () => {
+            alert('Error reading CSV file!');
+            event.target.value = '';
+        };
+
+        reader.readAsText(file);
     },
 
-    renderReportSummary() {
-        const transactions = this.getFilteredTransactions();
+    parseCSV(csvText) {
+        const lines = csvText.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            throw new Error('CSV file must have at least a header row and one data row');
+        }
+
+        // Parse header
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        // Find column indices
+        const nameIndex = headers.findIndex(h => h.includes('name') || h.includes('item'));
+        const priceIndex = headers.findIndex(h => h.includes('price') || h.includes('cost'));
+        const imageIndex = headers.findIndex(h => h.includes('image') || h.includes('url') || h.includes('photo'));
+
+        if (nameIndex === -1 || priceIndex === -1) {
+            throw new Error('CSV must have "name" and "price" columns');
+        }
+
+        // Parse data rows
+        const items = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = this.parseCSVLine(lines[i]);
+            
+            if (values.length < Math.max(nameIndex, priceIndex) + 1) {
+                continue; // Skip invalid rows
+            }
+
+            const name = values[nameIndex]?.trim();
+            const price = values[priceIndex]?.trim();
+            const image = imageIndex !== -1 ? values[imageIndex]?.trim() : '';
+
+            if (name && price && !isNaN(parseFloat(price))) {
+                items.push({
+                    name: name,
+                    defaultPrice: parseFloat(price),
+                    image: image || ''
+                });
+            }
+        }
+
+        return items;
+    },
+
+    parseCSVLine(line) {
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+                values.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        values.push(current); // Add last value
+
+        return values.map(v => v.replace(/^"|"$/g, '').trim());
+    },
+
+    // Reports
+    async renderReports() {
+        // Refresh transactions from cloud
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+            try {
+                await CloudStorage.getTransactions();
+            } catch (error) {
+                console.error('Error refreshing transactions:', error);
+            }
+        }
+        await this.renderReportSummary();
+        await this.renderTransactions();
+    },
+
+    async renderReportSummary() {
+        const transactions = await this.getFilteredTransactions();
         const summaryEl = document.getElementById('reportSummary');
 
         if (transactions.length === 0) {
@@ -352,8 +574,8 @@ const Admin = {
         `;
     },
 
-    renderTransactions() {
-        const transactions = this.getFilteredTransactions();
+    async renderTransactions() {
+        const transactions = await this.getFilteredTransactions();
         const transactionsList = document.getElementById('transactionsList');
 
         if (transactions.length === 0) {
@@ -385,8 +607,20 @@ const Admin = {
         }).join('');
     },
 
-    getFilteredTransactions() {
-        let transactions = Storage.getTransactions();
+    async getFilteredTransactions() {
+        let transactions = [];
+        
+        // Try to get from cloud storage first
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+            try {
+                transactions = await CloudStorage.getTransactions();
+            } catch (error) {
+                console.error('Error fetching from cloud:', error);
+                transactions = Storage.getTransactions();
+            }
+        } else {
+            transactions = Storage.getTransactions();
+        }
 
         // Apply date filters
         if (this.dateRangeFilter.from && this.dateRangeFilter.to) {
@@ -423,11 +657,11 @@ const Admin = {
     filterReports() {
         const monthValue = document.getElementById('monthFilter').value;
         if (monthValue) {
-            this.currentFilter = monthValue;
-            this.dateRangeFilter = { from: null, to: null }; // Clear date range when using month filter
-            document.getElementById('dateFrom').value = '';
-            document.getElementById('dateTo').value = '';
-            this.renderReports();
+        this.currentFilter = monthValue;
+        this.dateRangeFilter = { from: null, to: null }; // Clear date range when using month filter
+        document.getElementById('dateFrom').value = '';
+        document.getElementById('dateTo').value = '';
+        this.renderReports().catch(console.error);
         } else {
             alert('Please select a month!');
         }
@@ -450,7 +684,7 @@ const Admin = {
         this.dateRangeFilter = { from: dateFrom, to: dateTo };
         this.currentFilter = null; // Clear month filter when using date range
         document.getElementById('monthFilter').value = '';
-        this.renderReports();
+        this.renderReports().catch(console.error);
     },
 
     filterByMenuItem() {
@@ -463,7 +697,7 @@ const Admin = {
             this.menuItemFilter = menuItemValue;
         }
         
-        this.renderReports();
+        this.renderReports().catch(console.error);
     }
 };
 

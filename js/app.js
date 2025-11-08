@@ -1,18 +1,56 @@
 // Main application logic
 
 const App = {
+    searchTerm: '',
+
     init() {
         this.renderMenu();
         Cart.init();
         this.setupQuantityModal();
+        this.setupSearch();
+    },
+
+    setupSearch() {
+        const searchInput = document.getElementById('menuSearch');
+        const clearBtn = document.getElementById('clearSearchBtn');
+
+        searchInput.addEventListener('input', (e) => {
+            this.searchTerm = e.target.value.toLowerCase().trim();
+            this.renderMenu();
+            
+            // Show/hide clear button
+            if (this.searchTerm) {
+                clearBtn.style.display = 'block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            this.searchTerm = '';
+            clearBtn.style.display = 'none';
+            this.renderMenu();
+        });
     },
 
     renderMenu() {
-        const menuItems = Storage.getMenuItems();
+        let menuItems = Storage.getMenuItems();
         const menuGrid = document.getElementById('menuGrid');
 
+        // Filter menu items based on search term
+        if (this.searchTerm) {
+            menuItems = menuItems.filter(item => 
+                item.name.toLowerCase().includes(this.searchTerm)
+            );
+        }
+
         if (menuItems.length === 0) {
-            menuGrid.innerHTML = '<p style="color: white; text-align: center; grid-column: 1/-1;">No menu items available. Please add items from admin panel.</p>';
+            if (this.searchTerm) {
+                menuGrid.innerHTML = '<p style="color: white; text-align: center; grid-column: 1/-1; padding: 40px;">No items found matching your search.</p>';
+            } else {
+                menuGrid.innerHTML = '<p style="color: white; text-align: center; grid-column: 1/-1;">No menu items available. Please add items from admin panel.</p>';
+            }
             return;
         }
 
