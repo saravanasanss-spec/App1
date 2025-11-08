@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Digital Studio & Xerox Shop</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <!-- Password Modal -->
+    <div id="passwordModal" class="modal show">
+        <div class="modal-content">
+            <h2>Admin Login</h2>
+            <div class="modal-body">
+                <label for="passwordInput">Enter Password:</label>
+                <input type="password" id="passwordInput" placeholder="Enter admin password">
+                <p class="error-message" id="passwordError"></p>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" id="loginBtn">Login</button>
+                </div>
+                <p class="info-text">Default password: admin123</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel (Hidden until authenticated) -->
+    <div id="adminPanel" style="display: none;">
+        <header>
+            <div class="container">
+                <h1>Admin Panel</h1>
+                <nav>
+                    <a href="index.html">Home</a>
+                    <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+                </nav>
+            </div>
+        </header>
+
+        <main class="container">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="menu">Manage Menu</button>
+                <button class="tab-btn" data-tab="reports">Monthly Sales Report</button>
+            </div>
+
+            <!-- Manage Menu Tab -->
+            <div id="menuTab" class="tab-content active">
+                <div class="section-header">
+                    <h2>Manage Menu Items</h2>
+                    <button class="btn btn-primary" id="addItemBtn">Add New Item</button>
+                </div>
+
+                <div class="menu-list" id="menuList">
+                    <!-- Menu items will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Sales Report Tab -->
+            <div id="reportsTab" class="tab-content">
+                <div class="section-header">
+                    <h2>Sales Report</h2>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="menuItemFilter">Filter by Menu Item:</label>
+                            <select id="menuItemFilter">
+                                <option value="">All Items</option>
+                            </select>
+                            <button class="btn btn-primary" id="filterMenuItemBtn">Filter by Item</button>
+                        </div>
+                        <div class="filter-group">
+                            <label for="monthFilter">Filter by Month:</label>
+                            <input type="month" id="monthFilter">
+                            <button class="btn btn-primary" id="filterBtn">Filter by Month</button>
+                        </div>
+                        <div class="filter-group">
+                            <label for="dateFrom">Date From:</label>
+                            <input type="date" id="dateFrom">
+                            <label for="dateTo">Date To:</label>
+                            <input type="date" id="dateTo">
+                            <button class="btn btn-primary" id="filterDateRangeBtn">Filter by Date Range</button>
+                        </div>
+                        <button class="btn btn-secondary" id="clearFilterBtn">Show All</button>
+                    </div>
+                </div>
+
+                <div class="report-summary" id="reportSummary">
+                    <!-- Summary will be loaded here -->
+                </div>
+
+                <div class="transactions-list" id="transactionsList">
+                    <!-- Transactions will be loaded here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add Menu Item</h2>
+            <div class="modal-body">
+                <form id="itemForm">
+                    <label for="itemName">Item Name:</label>
+                    <input type="text" id="itemName" required>
+
+                    <label for="itemImage">Image URL:</label>
+                    <input type="text" id="itemImage" placeholder="Enter image URL from any website">
+                    <small>You can use images from Unsplash, Pexels, or any website. Example: https://images.unsplash.com/photo-...</small>
+
+                    <label for="itemPrice">Default Price (₹):</label>
+                    <input type="number" id="itemPrice" step="0.01" min="0" required>
+
+                    <div class="modal-actions">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-secondary" id="cancelItemBtn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
+
