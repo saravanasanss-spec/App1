@@ -13,16 +13,18 @@ Your CSV file should have the following columns:
 | **name** | Item name | ✅ Yes | Xerox |
 | **price** | Item price (in ₹) | ✅ Yes | 2 |
 | **image** | Image URL | ❌ No | https://example.com/image.jpg |
+| **stock** | Stock quantity | ❌ No | 1000 |
+| **menuid** | Menu ID (unique) | ❌ No | MENU001 |
 
 ### CSV Example
 
 ```csv
-name,price,image
-Xerox,2,https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop
-Passport size print,50,https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop
-Maxi photo print,100,https://images.unsplash.com/photo-1516035069371-29a1b244b32a?w=400&h=300&fit=crop
-Printout,5,https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&h=300&fit=crop
-Colour print out,10,https://images.unsplash.com/photo-1611224923853-04b19e2e2b1d?w=400&h=300&fit=crop
+name,price,image,stock,menuid
+Xerox,2,https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop,1000,MENU001
+Passport size print,50,https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop,500,MENU002
+Maxi photo print,100,https://images.unsplash.com/photo-1516035069371-29a1b244b32a?w=400&h=300&fit=crop,200,MENU003
+Printout,5,https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&h=300&fit=crop,2000,MENU004
+Colour print out,10,https://images.unsplash.com/photo-1611224923853-04b19e2e2b1d?w=400&h=300&fit=crop,1000,MENU005
 ```
 
 ### Column Name Variations

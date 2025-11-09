@@ -50,6 +50,15 @@ const Cart = {
             return;
         }
 
+        // Check stock availability
+        const menuItems = Storage.getMenuItems();
+        const menuItem = menuItems.find(m => m.id === itemId);
+        if (menuItem && (menuItem.stock || 0) < newQuantity) {
+            alert(`Insufficient stock! Available: ${menuItem.stock || 0}`);
+            this.renderCart(); // Re-render to reset quantity
+            return;
+        }
+
         const cart = Storage.getCart();
         const item = cart.find(cartItem => cartItem.itemId === itemId);
         if (item) {
@@ -80,25 +89,37 @@ const Cart = {
     renderCart() {
         const cart = Storage.getCart();
         const cartItemsEl = document.getElementById('cartItems');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
         const cartTotalEl = document.getElementById('cartTotal');
+        const billDiscountInput = document.getElementById('billDiscount');
 
         if (cart.length === 0) {
             cartItemsEl.innerHTML = '<p class="empty-cart">Your cart is empty</p>';
+            cartSubtotalEl.textContent = '0.00';
             cartTotalEl.textContent = '0.00';
+            if (billDiscountInput) billDiscountInput.value = '0';
             return;
         }
 
-        cartItemsEl.innerHTML = cart.map(item => `
+        cartItemsEl.innerHTML = cart.map(item => {
+            const menuItems = Storage.getMenuItems();
+            const menuItem = menuItems.find(m => m.id === item.itemId);
+            const stock = menuItem ? (menuItem.stock || 0) : null;
+            const stockWarning = stock !== null && stock < item.quantity ? ' (Low Stock!)' : '';
+            
+            return `
             <div class="cart-item">
                 <div class="cart-item-info">
-                    <h4>${item.name}</h4>
-                    <p>₹${item.price.toFixed(2)} per unit</p>
+                    <h4>${item.name}${stockWarning}</h4>
+                    <p>₹${item.price.toFixed(2)} per unit ${stock !== null ? `| Stock: ${stock}` : ''}</p>
+                    ${item.discount > 0 ? `<p style="color: #27ae60; font-size: 12px;">Discount: ₹${item.discount.toFixed(2)}</p>` : ''}
                 </div>
                 <div class="cart-item-actions">
                     <input 
                         type="number" 
                         value="${item.quantity}" 
                         min="1"
+                        max="${stock !== null ? stock : ''}"
                         onchange="Cart.updateQuantity('${item.itemId}', this.value)"
                     >
                     <button onclick="Cart.removeItem('${item.itemId}')">Remove</button>
@@ -107,9 +128,25 @@ const Cart = {
                     ₹${item.total.toFixed(2)}
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
-        cartTotalEl.textContent = this.getTotal().toFixed(2);
+        const subtotal = this.getTotal();
+        cartSubtotalEl.textContent = subtotal.toFixed(2);
+        
+        // Update total with discount
+        if (billDiscountInput) {
+            billDiscountInput.addEventListener('input', () => this.updateTotal());
+            this.updateTotal();
+        } else {
+            cartTotalEl.textContent = subtotal.toFixed(2);
+        }
+    },
+
+    updateTotal() {
+        const subtotal = this.getTotal();
+        const discount = parseFloat(document.getElementById('billDiscount')?.value || 0);
+        const finalTotal = Math.max(0, subtotal - discount);
+        document.getElementById('cartTotal').textContent = finalTotal.toFixed(2);
     },
 
     showPaymentModal() {
@@ -135,15 +172,47 @@ const Cart = {
             return;
         }
 
+        // Check stock availability and reduce stock
+        const menuItems = Storage.getMenuItems();
+        for (const cartItem of cart) {
+            const menuItem = menuItems.find(m => m.id === cartItem.itemId || m.name === cartItem.name);
+            if (menuItem) {
+                if ((menuItem.stock || 0) < cartItem.quantity) {
+                    alert(`Insufficient stock for ${cartItem.name}. Available: ${menuItem.stock || 0}`);
+                    return;
+                }
+                // Reduce stock
+                Storage.updateStock(menuItem.menuId, -cartItem.quantity);
+                
+                // Save stock adjustment log
+                if (typeof StockAdjustment !== 'undefined') {
+                    StockAdjustment.logAdjustment({
+                        menuId: menuItem.menuId,
+                        itemName: menuItem.name,
+                        quantity: -cartItem.quantity,
+                        reason: 'Billing - Sale',
+                        adjustmentType: 'sale'
+                    });
+                }
+            }
+        }
+
         const total = this.getTotal();
+        const discount = parseFloat(document.getElementById('billDiscount')?.value || 0);
+        const finalTotal = Math.max(0, total - discount);
+
         const transaction = {
             items: cart.map(item => ({
+                menuId: menuItems.find(m => m.id === item.itemId)?.menuId || null,
                 name: item.name,
                 quantity: item.quantity,
                 price: item.price,
-                total: item.total
+                total: item.total,
+                discount: item.discount || 0
             })),
-            total: total
+            total: total,
+            discount: discount,
+            finalTotal: finalTotal
         };
 
         // Use cloud storage if available, otherwise localStorage
@@ -178,7 +247,11 @@ const Cart = {
             return;
         }
 
-        const total = this.getTotal();
+        const subtotal = this.getTotal();
+        const discount = parseFloat(document.getElementById('billDiscount')?.value || 0);
+        const finalTotal = Math.max(0, subtotal - discount);
+        const currentUser = typeof Auth !== 'undefined' ? Auth.getCurrentUser() : null;
+        
         const billItemsEl = document.getElementById('billItems');
         const billTotalEl = document.getElementById('billTotal');
         const billDateEl = document.getElementById('billDate');
@@ -193,9 +266,29 @@ const Cart = {
             </tr>
         `).join('');
 
-        billTotalEl.textContent = total.toFixed(2);
+        // Add discount row if applicable
+        if (discount > 0) {
+            billItemsEl.innerHTML += `
+                <tr style="border-top: 1px solid #333;">
+                    <td colspan="3"><strong>Subtotal</strong></td>
+                    <td><strong>₹${subtotal.toFixed(2)}</strong></td>
+                </tr>
+                <tr>
+                    <td colspan="3"><strong>Discount</strong></td>
+                    <td><strong>-₹${discount.toFixed(2)}</strong></td>
+                </tr>
+            `;
+        }
+
+        billTotalEl.textContent = finalTotal.toFixed(2);
         billDateEl.textContent = new Date().toLocaleString();
         billNumberEl.textContent = 'BILL-' + Date.now().toString().slice(-6);
+
+        // Add billed by info if available
+        const billFooter = document.querySelector('.bill-footer');
+        if (currentUser && billFooter) {
+            billFooter.innerHTML = `<p>Billed by: ${currentUser.name}</p><p>Thank you for your business!</p>`;
+        }
 
         const billPrintEl = document.getElementById('billPrint');
         billPrintEl.style.display = 'block';
@@ -204,6 +297,9 @@ const Cart = {
 
         setTimeout(() => {
             billPrintEl.style.display = 'none';
+            if (billFooter) {
+                billFooter.innerHTML = '<p>Thank you for your business!</p>';
+            }
         }, 1000);
     }
 };
