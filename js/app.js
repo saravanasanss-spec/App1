@@ -2,12 +2,14 @@
 
 const App = {
     searchTerm: '',
+    showBookmarksOnly: false,
 
     init() {
         this.renderMenu();
         Cart.init();
         this.setupQuantityModal();
         this.setupSearch();
+        this.setupBookmarks();
     },
 
     setupSearch() {
@@ -34,9 +36,27 @@ const App = {
         });
     },
 
+    setupBookmarks() {
+        const bookmarksBtn = document.getElementById('showBookmarksBtn');
+        if (bookmarksBtn) {
+            bookmarksBtn.addEventListener('click', () => {
+                this.showBookmarksOnly = !this.showBookmarksOnly;
+                bookmarksBtn.textContent = this.showBookmarksOnly ? 'Show All' : '⭐ Bookmarks';
+                bookmarksBtn.classList.toggle('active', this.showBookmarksOnly);
+                this.renderMenu();
+            });
+        }
+    },
+
     renderMenu() {
         let menuItems = Storage.getMenuItems();
         const menuGrid = document.getElementById('menuGrid');
+
+        // Filter by bookmarks if enabled
+        if (this.showBookmarksOnly) {
+            const bookmarkedIds = Bookmarks.getBookmarks();
+            menuItems = menuItems.filter(item => bookmarkedIds.includes(item.menuId));
+        }
 
         // Filter menu items based on search term
         if (this.searchTerm) {
@@ -54,14 +74,30 @@ const App = {
             return;
         }
 
-        menuGrid.innerHTML = menuItems.map(item => `
-            <div class="menu-item">
-                <img src="${item.image}" alt="${item.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop'">
+        menuGrid.innerHTML = menuItems.map(item => {
+            const stock = item.stock || 0;
+            const stockStatus = stock > 0 ? `<span style="font-size: 12px; color: ${stock < 10 ? '#e74c3c' : '#27ae60'};">Stock: ${stock}</span>` : '<span style="font-size: 12px; color: #e74c3c;">Out of Stock</span>';
+            const isOutOfStock = stock <= 0;
+            const isBookmarked = Bookmarks.isBookmarked(item.menuId);
+            
+            return `
+            <div class="menu-item ${isOutOfStock ? 'out-of-stock' : ''}">
+                <div class="menu-item-header" style="position: relative;">
+                    <button class="bookmark-btn" onclick="App.toggleBookmark('${item.menuId}')" style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 24px; cursor: pointer; z-index: 10;">${isBookmarked ? '⭐' : '☆'}</button>
+                    <img src="${item.image}" alt="${item.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop'">
+                </div>
                 <h3>${item.name}</h3>
                 <p class="price">₹${item.defaultPrice.toFixed(2)}</p>
-                <button onclick="App.addToCart('${item.id}')">Add to Cart</button>
+                <p>${stockStatus}</p>
+                <button onclick="App.addToCart('${item.id}')" ${isOutOfStock ? 'disabled' : ''}>${isOutOfStock ? 'Out of Stock' : 'Add to Cart'}</button>
             </div>
-        `).join('');
+        `;
+        }).join('');
+    },
+
+    toggleBookmark(menuId) {
+        Bookmarks.toggleBookmark(menuId);
+        this.renderMenu();
     },
 
     addToCart(itemId) {
@@ -73,12 +109,20 @@ const App = {
             return;
         }
 
+        // Check stock
+        if ((item.stock || 0) <= 0) {
+            alert('This item is out of stock!');
+            return;
+        }
+
         Cart.currentItem = item;
         this.showQuantityModal();
     },
 
     showQuantityModal() {
-        document.getElementById('quantityInput').value = 1;
+        const quantityInput = document.getElementById('quantityInput');
+        quantityInput.value = 1;
+        quantityInput.max = Cart.currentItem ? (Cart.currentItem.stock || 9999) : 9999;
         document.getElementById('quantityModal').classList.add('show');
     },
 

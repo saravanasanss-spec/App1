@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digital Studio & Xerox Shop</title>
+    <title>SRI THIRUPATHI XEROX AND DIGITAL PRINTERS</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <header>
         <div class="container">
-            <h1>Digital Studio & Xerox Shop</h1>
+            <h1>SRI THIRUPATHI XEROX AND DIGITAL PRINTERS</h1>
             <nav>
                 <a href="index.html" class="active">Home</a>
                 <a href="admin.html">Admin</a>
+                <span id="userInfo" style="color: #667eea; margin-left: 15px;"></span>
+                <button id="logoutBtn" class="btn-logout" style="display: none;">Logout</button>
             </nav>
         </div>
     </header>
@@ -23,9 +25,12 @@
             <section class="menu-section">
                 <div class="menu-header">
                     <h2>Our Services</h2>
-                    <div class="search-box">
-                        <input type="text" id="menuSearch" placeholder="🔍 Search menu items...">
-                        <button class="clear-search" id="clearSearchBtn" style="display: none;">✕</button>
+                    <div class="menu-header-actions">
+                        <div class="search-box">
+                            <input type="text" id="menuSearch" placeholder="🔍 Search menu items...">
+                            <button class="clear-search" id="clearSearchBtn" style="display: none;">✕</button>
+                        </div>
+                        <button class="btn btn-bookmark" id="showBookmarksBtn" title="Show Bookmarked Items">⭐ Bookmarks</button>
                     </div>
                 </div>
                 <div class="menu-grid" id="menuGrid">
@@ -41,6 +46,13 @@
                         <p class="empty-cart">Your cart is empty</p>
                     </div>
                     <div class="cart-summary">
+                        <div class="subtotal">
+                            <strong>Subtotal: ₹<span id="cartSubtotal">0.00</span></strong>
+                        </div>
+                        <div class="discount-section" style="margin: 10px 0;">
+                            <label for="billDiscount" style="display: block; margin-bottom: 5px; font-size: 14px; color: #333;">Bill Discount (₹):</label>
+                            <input type="number" id="billDiscount" min="0" step="0.01" value="0" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
                         <div class="total">
                             <strong>Total: ₹<span id="cartTotal">0.00</span></strong>
                         </div>
@@ -93,7 +105,7 @@
     <!-- Bill Print Section (Hidden) -->
     <div id="billPrint" class="bill-print">
         <div class="bill-header">
-            <h2>Digital Studio & Xerox Shop</h2>
+            <h2>SRI THIRUPATHI XEROX AND DIGITAL PRINTERS</h2>
             <p>Bill Receipt</p>
         </div>
         <div class="bill-info">
@@ -130,8 +142,29 @@
     <script src="js/firebase-config.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/cloud-storage.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/stock-adjustment.js"></script>
+    <script src="js/expense.js"></script>
+    <script src="js/bookmarks.js"></script>
     <script src="js/cart.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Check authentication
+        if (typeof Auth !== 'undefined') {
+            if (!Auth.checkAuth()) {
+                window.location.href = 'login.html';
+            } else {
+                const user = Auth.getCurrentUser();
+                if (user) {
+                    document.getElementById('userInfo').textContent = `Welcome, ${user.name}`;
+                    document.getElementById('logoutBtn').style.display = 'inline-block';
+                    document.getElementById('logoutBtn').addEventListener('click', () => {
+                        Auth.logout();
+                    });
+                }
+            }
+        }
+    </script>
 </body>
 </html>
 

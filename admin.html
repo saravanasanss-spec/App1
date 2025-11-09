@@ -3,33 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Digital Studio & Xerox Shop</title>
+    <title>Admin Panel - SRI THIRUPATHI XEROX AND DIGITAL PRINTERS</title>
     <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
-    <!-- Password Modal -->
-    <div id="passwordModal" class="modal show">
-        <div class="modal-content">
-            <h2>Admin Login</h2>
-            <div class="modal-body">
-                <label for="passwordInput">Enter Password:</label>
-                <input type="password" id="passwordInput" placeholder="Enter admin password">
-                <p class="error-message" id="passwordError"></p>
-                <div class="modal-actions">
-                    <button class="btn btn-primary" id="loginBtn">Login</button>
-                </div>
-                <p class="info-text">Default password: admin123</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Admin Panel (Hidden until authenticated) -->
-    <div id="adminPanel" style="display: none;">
+    <!-- Admin Panel -->
+    <div id="adminPanel">
         <header>
             <div class="container">
-                <h1>Admin Panel</h1>
+                <h1>Admin Panel - SRI THIRUPATHI XEROX AND DIGITAL PRINTERS</h1>
                 <nav>
                     <a href="index.html">Home</a>
+                    <span id="adminUserInfo" style="color: #667eea; margin-left: 15px;"></span>
                     <button class="btn btn-secondary" id="logoutBtn">Logout</button>
                 </nav>
             </div>
@@ -38,7 +23,10 @@
         <main class="container">
             <div class="tabs">
                 <button class="tab-btn active" data-tab="menu">Manage Menu</button>
-                <button class="tab-btn" data-tab="reports">Monthly Sales Report</button>
+                <button class="tab-btn" data-tab="users">User Master</button>
+                <button class="tab-btn" data-tab="inventory">Stock Adjustment</button>
+                <button class="tab-btn" data-tab="expenses">Expense Management</button>
+                <button class="tab-btn" data-tab="reports">Sales Report</button>
             </div>
 
             <!-- Manage Menu Tab -->
@@ -95,6 +83,71 @@
                     <!-- Transactions will be loaded here -->
                 </div>
             </div>
+
+            <!-- User Master Tab -->
+            <div id="usersTab" class="tab-content">
+                <div class="section-header">
+                    <h2>User Management</h2>
+                    <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+                </div>
+                <div class="users-list" id="usersList">
+                    <!-- Users will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Stock Adjustment Tab -->
+            <div id="inventoryTab" class="tab-content">
+                <div class="section-header">
+                    <h2>Stock Adjustment</h2>
+                    <button class="btn btn-primary" id="adjustStockBtn">Adjust Stock</button>
+                </div>
+                <div class="adjustment-form" id="adjustmentForm" style="display: none; background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>Adjust Stock</h3>
+                    <form id="stockAdjustmentForm">
+                        <label for="adjustMenuItem">Select Item:</label>
+                        <select id="adjustMenuItem" required style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                            <option value="">Select item...</option>
+                        </select>
+                        <label for="adjustQuantity">Quantity Change:</label>
+                        <input type="number" id="adjustQuantity" step="1" required placeholder="Positive for addition, negative for reduction" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                        <label for="adjustReason">Reason:</label>
+                        <input type="text" id="adjustReason" required placeholder="e.g., Received stock, Spoiled stock" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" class="btn btn-primary">Save Adjustment</button>
+                            <button type="button" class="btn btn-secondary" id="cancelAdjustmentBtn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="adjustments-list" id="adjustmentsList">
+                    <!-- Stock adjustments will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Expense Management Tab -->
+            <div id="expensesTab" class="tab-content">
+                <div class="section-header">
+                    <h2>Expense Management</h2>
+                    <button class="btn btn-primary" id="addExpenseBtn">Add Expense</button>
+                </div>
+                <div class="expense-form" id="expenseForm" style="display: none; background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <h3>Add Expense</h3>
+                    <form id="expenseFormElement">
+                        <label for="expensePerson">Person Name:</label>
+                        <input type="text" id="expensePerson" required style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                        <label for="expensePurpose">Purpose:</label>
+                        <input type="text" id="expensePurpose" required style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                        <label for="expenseAmount">Amount (₹):</label>
+                        <input type="number" id="expenseAmount" step="0.01" min="0" required style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" class="btn btn-primary">Save Expense</button>
+                            <button type="button" class="btn btn-secondary" id="cancelExpenseBtn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="expenses-list" id="expensesList">
+                    <!-- Expenses will be loaded here -->
+                </div>
+            </div>
         </main>
     </div>
 
@@ -132,9 +185,46 @@
                     <label for="itemPrice">Default Price (₹):</label>
                     <input type="number" id="itemPrice" step="0.01" min="0" required>
 
+                    <label for="itemStock">Stock Quantity:</label>
+                    <input type="number" id="itemStock" step="1" min="0" value="0" required>
+
+                    <label for="itemMenuId">Menu ID:</label>
+                    <input type="text" id="itemMenuId" placeholder="Auto-generated if empty">
+
                     <div class="modal-actions">
                         <button type="submit" class="btn btn-primary">Save</button>
                         <button type="button" class="btn btn-secondary" id="cancelItemBtn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="userModalTitle">Add User</h2>
+            <div class="modal-body">
+                <form id="userForm">
+                    <label for="userName">Full Name:</label>
+                    <input type="text" id="userName" required>
+
+                    <label for="userUsername">Username:</label>
+                    <input type="text" id="userUsername" required>
+
+                    <label for="userPassword">Password:</label>
+                    <input type="password" id="userPassword" required>
+
+                    <label for="userRole">Role:</label>
+                    <select id="userRole" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+
+                    <div class="modal-actions">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-secondary" id="cancelUserBtn">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -148,7 +238,18 @@
     <script src="js/firebase-config.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/cloud-storage.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/stock-adjustment.js"></script>
+    <script src="js/expense.js"></script>
     <script src="js/admin.js"></script>
+    <script>
+        // Check authentication for admin panel
+        if (typeof Auth !== 'undefined') {
+            if (!Auth.checkAuth()) {
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
 </body>
 </html>
 

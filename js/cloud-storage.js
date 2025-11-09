@@ -19,11 +19,17 @@ const CloudStorage = {
 
     // Transactions - Cloud Storage
     async addTransaction(transaction) {
+        const currentUser = typeof Auth !== 'undefined' ? Auth.getCurrentUser() : null;
         const newTransaction = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             date: new Date().toISOString(),
             items: transaction.items,
             total: transaction.total,
+            discount: transaction.discount || 0,
+            finalTotal: transaction.finalTotal || transaction.total,
+            userId: currentUser ? currentUser.id : null,
+            userName: currentUser ? currentUser.name : 'Unknown',
+            userUsername: currentUser ? currentUser.username : 'unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
@@ -60,7 +66,12 @@ const CloudStorage = {
                         id: doc.id,
                         date: data.date,
                         items: data.items,
-                        total: data.total
+                        total: data.total,
+                        discount: data.discount || 0,
+                        finalTotal: data.finalTotal || data.total,
+                        userId: data.userId,
+                        userName: data.userName,
+                        userUsername: data.userUsername
                     });
                 });
 
@@ -99,24 +110,34 @@ const CloudStorage = {
     },
 
     async saveMenuItems(items) {
-        if (this.isAvailable) {
+        // Save to localStorage first
+        Storage.saveMenuItems(items);
+        
+        if (this.isAvailable && this.db) {
             try {
-                // Save to localStorage first
-                Storage.saveMenuItems(items);
-                
-                // Sync to cloud
-                const batch = this.db.batch();
-                items.forEach(item => {
-                    const itemRef = this.db.collection('menuItems').doc(item.id);
-                    batch.set(itemRef, item);
+                // Delete all existing items first to ensure clean sync
+                const snapshot = await this.db.collection('menuItems').get();
+                const deleteBatch = this.db.batch();
+                snapshot.forEach(doc => {
+                    deleteBatch.delete(doc.ref);
                 });
-                await batch.commit();
+                await deleteBatch.commit();
+
+                // Add all items in batches (Firestore limit is 500 operations per batch)
+                const batchSize = 500;
+                for (let i = 0; i < items.length; i += batchSize) {
+                    const batch = this.db.batch();
+                    const batchItems = items.slice(i, i + batchSize);
+                    batchItems.forEach(item => {
+                        const itemRef = this.db.collection('menuItems').doc(item.id);
+                        batch.set(itemRef, item);
+                    });
+                    await batch.commit();
+                }
             } catch (error) {
                 console.error('Error saving menu items to cloud:', error);
                 // localStorage already saved, so continue
             }
-        } else {
-            Storage.saveMenuItems(items);
         }
     },
 

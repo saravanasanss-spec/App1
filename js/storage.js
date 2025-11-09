@@ -5,11 +5,11 @@ const Storage = {
     init() {
         if (!localStorage.getItem('menuItems')) {
             const defaultMenuItems = [
-                { id: '1', name: 'Xerox', image: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop', defaultPrice: 2 },
-                { id: '2', name: 'Passport size print', image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop', defaultPrice: 50 },
-                { id: '3', name: 'Maxi photo print', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244b32a?w=400&h=300&fit=crop', defaultPrice: 100 },
-                { id: '4', name: 'Printout', image: 'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&h=300&fit=crop', defaultPrice: 5 },
-                { id: '5', name: 'Colour print out', image: 'https://images.unsplash.com/photo-1611224923853-04b19e2e2b1d?w=400&h=300&fit=crop', defaultPrice: 10 }
+                { id: '1', menuId: 'MENU001', name: 'Xerox', image: 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=300&fit=crop', defaultPrice: 2, stock: 1000 },
+                { id: '2', menuId: 'MENU002', name: 'Passport size print', image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop', defaultPrice: 50, stock: 500 },
+                { id: '3', menuId: 'MENU003', name: 'Maxi photo print', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244b32a?w=400&h=300&fit=crop', defaultPrice: 100, stock: 200 },
+                { id: '4', menuId: 'MENU004', name: 'Printout', image: 'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&h=300&fit=crop', defaultPrice: 5, stock: 2000 },
+                { id: '5', menuId: 'MENU005', name: 'Colour print out', image: 'https://images.unsplash.com/photo-1611224923853-04b19e2e2b1d?w=400&h=300&fit=crop', defaultPrice: 10, stock: 1000 }
             ];
             this.saveMenuItems(defaultMenuItems);
         }
@@ -40,15 +40,33 @@ const Storage = {
 
     addMenuItem(item) {
         const items = this.getMenuItems();
+        // Generate unique Menu ID if not provided
+        const menuId = item.menuId || this.generateMenuId();
         const newItem = {
             id: Date.now().toString(),
+            menuId: menuId,
             name: item.name,
             image: item.image || 'https://via.placeholder.com/200x150?text=Item',
-            defaultPrice: parseFloat(item.defaultPrice) || 0
+            defaultPrice: parseFloat(item.defaultPrice) || 0,
+            stock: parseFloat(item.stock) || 0
         };
         items.push(newItem);
         this.saveMenuItems(items);
         return newItem;
+    },
+
+    generateMenuId() {
+        const items = this.getMenuItems();
+        let maxNum = 0;
+        items.forEach(item => {
+            if (item.menuId && item.menuId.startsWith('MENU')) {
+                const num = parseInt(item.menuId.replace('MENU', ''));
+                if (!isNaN(num) && num > maxNum) {
+                    maxNum = num;
+                }
+            }
+        });
+        return 'MENU' + String(maxNum + 1).padStart(3, '0');
     },
 
     updateMenuItem(id, updatedItem) {
@@ -57,12 +75,25 @@ const Storage = {
         if (index !== -1) {
             items[index] = {
                 ...items[index],
+                menuId: updatedItem.menuId || items[index].menuId,
                 name: updatedItem.name || items[index].name,
                 image: updatedItem.image || items[index].image,
-                defaultPrice: parseFloat(updatedItem.defaultPrice) || items[index].defaultPrice
+                defaultPrice: parseFloat(updatedItem.defaultPrice) !== undefined ? parseFloat(updatedItem.defaultPrice) : items[index].defaultPrice,
+                stock: parseFloat(updatedItem.stock) !== undefined ? parseFloat(updatedItem.stock) : items[index].stock
             };
             this.saveMenuItems(items);
             return items[index];
+        }
+        return null;
+    },
+
+    updateStock(menuId, quantity) {
+        const items = this.getMenuItems();
+        const item = items.find(i => i.menuId === menuId);
+        if (item) {
+            item.stock = Math.max(0, (item.stock || 0) + quantity);
+            this.saveMenuItems(items);
+            return item;
         }
         return null;
     },
@@ -100,11 +131,17 @@ const Storage = {
 
     addTransaction(transaction) {
         const transactions = this.getTransactions();
+        const currentUser = typeof Auth !== 'undefined' ? Auth.getCurrentUser() : null;
         const newTransaction = {
             id: Date.now().toString(),
             date: new Date().toISOString(),
             items: transaction.items,
-            total: transaction.total
+            total: transaction.total,
+            discount: transaction.discount || 0,
+            finalTotal: transaction.finalTotal || transaction.total,
+            userId: currentUser ? currentUser.id : null,
+            userName: currentUser ? currentUser.name : 'Unknown',
+            userUsername: currentUser ? currentUser.username : 'unknown'
         };
         transactions.push(newTransaction);
         this.saveTransactions(transactions);
