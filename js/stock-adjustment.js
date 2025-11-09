@@ -35,7 +35,8 @@ const StockAdjustment = {
         }
 
         // Save to localStorage
-        const adjustments = this.getAdjustments();
+        // FIX: Await the asynchronous getAdjustments() call to get the array back
+        const adjustments = await  this.getAdjustments();
         adjustments.push(adjustment);
         localStorage.setItem('stockAdjustments', JSON.stringify(adjustments));
 
