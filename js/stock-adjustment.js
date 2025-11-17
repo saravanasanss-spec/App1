@@ -26,7 +26,7 @@ const StockAdjustment = {
         };
 
         // Save to cloud
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && db) {
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && typeof db !== 'undefined' && db) {
             try {
                 await db.collection('stockAdjustments').doc(adjustment.id).set(adjustment);
             } catch (error) {
@@ -34,9 +34,17 @@ const StockAdjustment = {
             }
         }
 
-        // Save to localStorage
-        // FIX: Await the asynchronous getAdjustments() call to get the array back
-        const adjustments = await  this.getAdjustments();
+        // Save to localStorage with resilient fallback
+        let adjustments;
+        try {
+            adjustments = await this.getAdjustments();
+            if (!Array.isArray(adjustments)) {
+                throw new Error('Adjustments result is not an array');
+            }
+        } catch (error) {
+            console.warn('Falling back to local adjustments due to error:', error);
+            adjustments = this.getAdjustmentsLocal();
+        }
         adjustments.push(adjustment);
         localStorage.setItem('stockAdjustments', JSON.stringify(adjustments));
 
@@ -45,7 +53,7 @@ const StockAdjustment = {
 
     // Get all adjustments
     async getAdjustments() {
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && db) {
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && typeof db !== 'undefined' && db) {
             try {
                 const snapshot = await db.collection('stockAdjustments')
                     .orderBy('date', 'desc')
@@ -75,6 +83,7 @@ const StockAdjustment = {
 
     // Manual stock adjustment
     async adjustStock(menuId, quantity, reason) {
+        // Get the item using menuId
         const menuItems = Storage.getMenuItems();
         const menuItem = menuItems.find(m => m.menuId === menuId);
         
@@ -82,10 +91,13 @@ const StockAdjustment = {
             throw new Error('Menu item not found');
         }
 
-        // Update stock
-        Storage.updateStock(menuId, quantity);
+        // 1. Calculate the new stock
+        const newStock = Math.max(0, (menuItem.stock || 0) + quantity);
 
-        // Log adjustment
+        // 2. Update stock in LocalStorage and get the updated item object
+        const updatedItem = Storage.updateStock(menuId, quantity);
+
+        // 3. Log adjustment (this is already working)
         await this.logAdjustment({
             menuId: menuId,
             itemName: menuItem.name,
@@ -94,7 +106,26 @@ const StockAdjustment = {
             adjustmentType: quantity > 0 ? 'receipt' : 'adjustment'
         });
 
-        return menuItem;
+        // 4. *** CRITICAL FIX: Update the menu item in Cloud Storage ***
+        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && updatedItem) {
+            try {
+                // Prefer the item's unique 'id', but fall back to menuId if needed
+                const docId = updatedItem.id || menuItem.id;
+                if (docId) {
+                    await CloudStorage.updateMenuItem(docId, {
+                        stock: newStock,
+                        updatedAt: new Date().toISOString()
+                    });
+                } else {
+                    console.warn('Unable to determine document id for cloud stock sync');
+                }
+            } catch (error) {
+                console.error('Error synchronizing stock adjustment to cloud:', error);
+                // The local data is updated, so the user can continue working
+            }
+        }
+
+        return updatedItem;
     }
 };
 
@@ -102,4 +133,3 @@ const StockAdjustment = {
 if (typeof window !== 'undefined') {
     StockAdjustment.init();
 }
-

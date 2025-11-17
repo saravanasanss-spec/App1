@@ -7,6 +7,8 @@ const Admin = {
     dateRangeFilter: { from: null, to: null },
     menuItemFilter: null,
     uploadedImageData: null,
+    adjustmentFilters: { from: null, to: null, menuId: '' },
+    showBilledAdjustments: false,
 
     init() {
         // Check authentication using Auth system
@@ -91,6 +93,15 @@ const Admin = {
             e.preventDefault();
             this.saveStockAdjustment();
         });
+        document.getElementById('filterAdjustmentsBtn').addEventListener('click', () => this.applyAdjustmentFilters());
+        document.getElementById('clearAdjustmentsFilterBtn').addEventListener('click', () => this.clearAdjustmentFilters());
+        const showBilledCheckbox = document.getElementById('showBilledAdjustments');
+        if (showBilledCheckbox) {
+            showBilledCheckbox.addEventListener('change', (e) => {
+                this.showBilledAdjustments = e.target.checked;
+                this.renderAdjustments();
+            });
+        }
 
         // Expense management
         document.getElementById('addExpenseBtn').addEventListener('click', () => {
@@ -865,14 +876,159 @@ const Admin = {
     // Stock Adjustment
     populateAdjustmentMenu() {
         const select = document.getElementById('adjustMenuItem');
+        const filterSelect = document.getElementById('adjustmentFilterItem');
         const menuItems = Storage.getMenuItems();
-        select.innerHTML = '<option value="">Select item...</option>';
-        menuItems.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item.menuId;
-            option.textContent = `${item.menuId} - ${item.name} (Stock: ${item.stock || 0})`;
-            select.appendChild(option);
+        if (select) {
+            select.innerHTML = '<option value="">Select item...</option>';
+            menuItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.menuId;
+                option.textContent = `${item.menuId || 'N/A'} - ${item.name} (Stock: ${item.stock || 0})`;
+                select.appendChild(option);
+            });
+        }
+
+        if (filterSelect) {
+            const currentFilterValue = this.adjustmentFilters.menuId || '';
+            filterSelect.innerHTML = '<option value="">All Items</option>';
+            menuItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.menuId;
+                option.textContent = `${item.menuId || 'N/A'} - ${item.name}`;
+                if (currentFilterValue === option.value) {
+                    option.selected = true;
+                }
+                filterSelect.appendChild(option);
+            });
+        }
+    },
+
+    applyAdjustmentFilters() {
+        const menuId = document.getElementById('adjustmentFilterItem').value;
+        const dateFrom = document.getElementById('adjustDateFrom').value;
+        const dateTo = document.getElementById('adjustDateTo').value;
+
+        if ((dateFrom && !dateTo) || (!dateFrom && dateTo)) {
+            alert('Please select both "Date From" and "Date To" to apply a date filter.');
+            return;
+        }
+
+        if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+            alert('"Date From" cannot be later than "Date To".');
+            return;
+        }
+
+        this.adjustmentFilters = {
+            from: dateFrom || null,
+            to: dateTo || null,
+            menuId: menuId || ''
+        };
+
+        this.renderAdjustments();
+    },
+
+    clearAdjustmentFilters() {
+        this.adjustmentFilters = { from: null, to: null, menuId: '' };
+        this.showBilledAdjustments = false;
+        document.getElementById('adjustDateFrom').value = '';
+        document.getElementById('adjustDateTo').value = '';
+        const filterSelect = document.getElementById('adjustmentFilterItem');
+        if (filterSelect) {
+            filterSelect.value = '';
+        }
+        const showBilledCheckbox = document.getElementById('showBilledAdjustments');
+        if (showBilledCheckbox) {
+            showBilledCheckbox.checked = false;
+        }
+        this.renderAdjustments();
+    },
+
+    getFilteredAdjustments(adjustments) {
+        const { from, to, menuId } = this.adjustmentFilters;
+        let result = adjustments.filter(adj => {
+            if (!this.showBilledAdjustments && adj.adjustmentType === 'sale') {
+                return false;
+            }
+            return true;
         });
+
+        if (!from && !to && !menuId) {
+            return result;
+        }
+
+        const fromDate = from ? new Date(from) : null;
+        const toDate = to ? new Date(to) : null;
+        if (toDate) {
+            toDate.setHours(23, 59, 59, 999);
+        }
+
+        return result.filter(adj => {
+            if (menuId && adj.menuId !== menuId) {
+                return false;
+            }
+            if (fromDate && toDate) {
+                const adjustmentDate = new Date(adj.date || adj.createdAt);
+                if (adjustmentDate < fromDate || adjustmentDate > toDate) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    },
+
+    renderAdjustmentSummary(adjustments) {
+        const summaryEl = document.getElementById('adjustmentSummary');
+        if (!summaryEl) return;
+
+        if (!adjustments || adjustments.length === 0) {
+            summaryEl.innerHTML = '<div class="empty-state"><p>No stock adjustments found for the selected filters.</p></div>';
+            return;
+        }
+
+        const totalRecords = adjustments.length;
+        const addedQty = adjustments.filter(adj => adj.quantity > 0)
+            .reduce((sum, adj) => sum + adj.quantity, 0);
+        const removedQty = adjustments.filter(adj => adj.quantity < 0)
+            .reduce((sum, adj) => sum + Math.abs(adj.quantity), 0);
+        const netChange = addedQty - removedQty;
+
+        const { from, to, menuId } = this.adjustmentFilters;
+        const filterParts = [];
+        if (from && to) {
+            const fromLabel = new Date(from).toLocaleDateString();
+            const toLabel = new Date(to).toLocaleDateString();
+            filterParts.push(`from ${fromLabel} to ${toLabel}`);
+        }
+        if (menuId) {
+            const menuItems = Storage.getMenuItems();
+            const item = menuItems.find(m => m.menuId === menuId);
+            filterParts.push(`for ${item ? `${item.menuId} - ${item.name}` : menuId}`);
+        }
+        const filterText = filterParts.length ? ` (${filterParts.join(' and ')})` : ' (All Records)';
+
+        summaryEl.innerHTML = `
+            <h3>Stock Adjustment Summary${filterText}</h3>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Total Records</h3>
+                    <p>${totalRecords}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Quantity Added</h3>
+                    <p style="color: #27ae60;">+${addedQty}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Quantity Removed</h3>
+                    <p style="color: #e74c3c;">-${removedQty}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Net Change</h3>
+                    <p style="color: ${netChange >= 0 ? '#27ae60' : '#e74c3c'};">
+                        ${netChange >= 0 ? '+' : ''}${netChange}
+                    </p>
+                </div>
+            </div>
+        `;
     },
 
     async saveStockAdjustment() {
@@ -902,13 +1058,20 @@ const Admin = {
         const adjustmentsList = document.getElementById('adjustmentsList');
         try {
             const adjustments = await StockAdjustment.getAdjustments();
-            if (adjustments.length === 0) {
-                adjustmentsList.innerHTML = '<div class="empty-state"><p>No stock adjustments found.</p></div>';
+            const filteredAdjustments = this.getFilteredAdjustments(adjustments);
+            this.renderAdjustmentSummary(filteredAdjustments);
+
+            if (filteredAdjustments.length === 0) {
+                const hasFilters = this.adjustmentFilters.from || this.adjustmentFilters.to || this.adjustmentFilters.menuId;
+                const message = hasFilters
+                    ? 'No stock adjustments found for the selected filters.'
+                    : 'No stock adjustments found.';
+                adjustmentsList.innerHTML = `<div class="empty-state"><p>${message}</p></div>`;
                 return;
             }
 
-            adjustmentsList.innerHTML = adjustments.map(adj => {
-                const date = new Date(adj.date);
+            adjustmentsList.innerHTML = filteredAdjustments.map(adj => {
+                const date = new Date(adj.date || adj.createdAt);
                 const quantityColor = adj.quantity > 0 ? 'green' : 'red';
                 return `
                     <div class="transaction-card">
@@ -930,7 +1093,7 @@ const Admin = {
                                 <span></span>
                             </div>
                             <div class="transaction-item">
-                                <span><strong>Adjusted by:</strong> ${adj.userName} (${adj.userUsername})</span>
+                                <span><strong>Adjusted by:</strong> ${adj.userName || 'Unknown'} (${adj.userUsername || 'unknown'})</span>
                                 <span></span>
                             </div>
                         </div>
@@ -940,6 +1103,10 @@ const Admin = {
         } catch (error) {
             console.error('Error rendering adjustments:', error);
             adjustmentsList.innerHTML = '<div class="empty-state"><p>Error loading adjustments.</p></div>';
+            const summaryEl = document.getElementById('adjustmentSummary');
+            if (summaryEl) {
+                summaryEl.innerHTML = '<div class="empty-state"><p>Error loading adjustment summary.</p></div>';
+            }
         }
     },
 

@@ -34,6 +34,9 @@
                 <div class="section-header">
                     <h2>Manage Menu Items</h2>
                     <div class="header-actions">
+                        <a href="menu_template.csv" download class="btn btn-secondary" style="text-decoration: none; text-align: center;">
+                            ⬇️ Download Template
+                        </a>
                         <label for="csvUpload" class="btn btn-success" style="cursor: pointer; margin-right: 10px;">
                             📄 Upload CSV
                         </label>
@@ -100,6 +103,33 @@
                 <div class="section-header">
                     <h2>Stock Adjustment</h2>
                     <button class="btn btn-primary" id="adjustStockBtn">Adjust Stock</button>
+                </div>
+                <div class="filter-controls adjustment-filters">
+                    <div class="filter-group">
+                        <label for="adjustmentFilterItem">Filter by Menu Item:</label>
+                        <select id="adjustmentFilterItem">
+                            <option value="">All Items</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="adjustDateFrom">Date From:</label>
+                        <input type="date" id="adjustDateFrom">
+                        <label for="adjustDateTo">Date To:</label>
+                        <input type="date" id="adjustDateTo">
+                    </div>
+                    <div class="filter-group">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-top: 22px;">
+                            <input type="checkbox" id="showBilledAdjustments">
+                            Include billed transactions
+                        </label>
+                    </div>
+                    <div class="filter-group" style="align-items: flex-end;">
+                        <button class="btn btn-primary" id="filterAdjustmentsBtn">Apply Filters</button>
+                        <button class="btn btn-secondary" id="clearAdjustmentsFilterBtn">Clear</button>
+                    </div>
+                </div>
+                <div class="report-summary" id="adjustmentSummary">
+                    <!-- Stock adjustment summary will render here -->
                 </div>
                 <div class="adjustment-form" id="adjustmentForm" style="display: none; background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
                     <h3>Adjust Stock</h3>

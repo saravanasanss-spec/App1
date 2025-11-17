@@ -2,6 +2,7 @@
 
 const Cart = {
     currentItem: null,
+    isProcessingPayment: false,
 
     init() {
         this.renderCart();
@@ -10,7 +11,7 @@ const Cart = {
 
     setupEventListeners() {
         document.getElementById('clearCartBtn').addEventListener('click', () => this.clearCart());
-        document.getElementById('payNowBtn').addEventListener('click', () => this.showPaymentModal());
+        document.getElementById('payNowBtn').addEventListener('click', () => this.handlePayNow());
         document.getElementById('printBillBtn').addEventListener('click', () => this.printBill());
         document.getElementById('confirmPaymentBtn').addEventListener('click', () => this.confirmPayment());
         document.getElementById('cancelPaymentBtn').addEventListener('click', () => this.closePaymentModal());
@@ -149,94 +150,123 @@ const Cart = {
         document.getElementById('cartTotal').textContent = finalTotal.toFixed(2);
     },
 
-    showPaymentModal() {
-        const cart = Storage.getCart();
-        if (cart.length === 0) {
-            alert('Your cart is empty!');
-            return;
-        }
+    handlePayNow() {
+        this.confirmPayment();
+    },
 
-        const total = this.getTotal();
-        document.getElementById('paymentTotal').textContent = total.toFixed(2);
-        document.getElementById('paymentModal').classList.add('show');
+    showPaymentModal() {
+        // Legacy support: instead of showing QR modal, process payment directly.
+        this.handlePayNow();
     },
 
     closePaymentModal() {
         document.getElementById('paymentModal').classList.remove('show');
     },
 
-    confirmPayment() {
-        const cart = Storage.getCart();
-        if (cart.length === 0) {
-            alert('Your cart is empty!');
+    async confirmPayment() {
+        if (this.isProcessingPayment) {
             return;
         }
 
-        // Check stock availability and reduce stock
-        const menuItems = Storage.getMenuItems();
-        for (const cartItem of cart) {
-            const menuItem = menuItems.find(m => m.id === cartItem.itemId || m.name === cartItem.name);
-            if (menuItem) {
-                if ((menuItem.stock || 0) < cartItem.quantity) {
-                    alert(`Insufficient stock for ${cartItem.name}. Available: ${menuItem.stock || 0}`);
-                    return;
-                }
-                // Reduce stock
-                Storage.updateStock(menuItem.menuId, -cartItem.quantity);
-                
-                // Save stock adjustment log
-                if (typeof StockAdjustment !== 'undefined') {
-                    StockAdjustment.logAdjustment({
-                        menuId: menuItem.menuId,
-                        itemName: menuItem.name,
-                        quantity: -cartItem.quantity,
-                        reason: 'Billing - Sale',
-                        adjustmentType: 'sale'
-                    });
-                }
-            }
+        const cart = Storage.getCart();
+        if (cart.length === 0) {
+            alert('Your cart is empty!');
+            this.isProcessingPayment = false;
+            return;
         }
 
-        const total = this.getTotal();
-        const discount = parseFloat(document.getElementById('billDiscount')?.value || 0);
-        const finalTotal = Math.max(0, total - discount);
+        this.isProcessingPayment = true;
+        const cloudSyncPromises = [];
 
-        const transaction = {
-            items: cart.map(item => ({
-                menuId: menuItems.find(m => m.id === item.itemId)?.menuId || null,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                total: item.total,
-                discount: item.discount || 0
-            })),
-            total: total,
-            discount: discount,
-            finalTotal: finalTotal
-        };
+        try {
+            // Check stock availability and reduce stock
+            const menuItems = Storage.getMenuItems();
+            for (const cartItem of cart) {
+                const menuItem = menuItems.find(m => m.id === cartItem.itemId || m.name === cartItem.name);
+                if (menuItem) {
+                    if ((menuItem.stock || 0) < cartItem.quantity) {
+                        alert(`Insufficient stock for ${cartItem.name}. Available: ${menuItem.stock || 0}`);
+                        this.isProcessingPayment = false;
+                        return;
+                    }
+                    // Reduce stock locally
+                    const updatedItem = Storage.updateStock(menuItem.menuId || menuItem.id, -cartItem.quantity);
 
-        // Use cloud storage if available, otherwise localStorage
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
-            CloudStorage.addTransaction(transaction).then(() => {
-                Storage.clearCart();
-                this.renderCart();
-                this.closePaymentModal();
-                alert('Payment confirmed! Transaction saved to cloud.');
-            }).catch(error => {
-                console.error('Error saving transaction:', error);
-                // Fallback to localStorage
+                    // Sync stock to cloud if available
+                    if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable && updatedItem?.id) {
+                        cloudSyncPromises.push(
+                            CloudStorage.updateMenuItem(updatedItem.id, {
+                                stock: updatedItem.stock,
+                                updatedAt: new Date().toISOString()
+                            }).catch(error => {
+                                console.error('Error syncing stock to cloud:', error);
+                            })
+                        );
+                    }
+                    
+                    // Save stock adjustment log
+                    if (typeof StockAdjustment !== 'undefined') {
+                        await StockAdjustment.logAdjustment({
+                            menuId: menuItem.menuId || menuItem.id,
+                            itemName: menuItem.name,
+                            quantity: -cartItem.quantity,
+                            reason: 'Billing - Sale',
+                            adjustmentType: 'sale'
+                        });
+                    }
+                }
+            }
+
+            if (cloudSyncPromises.length > 0) {
+                await Promise.allSettled(cloudSyncPromises);
+            }
+
+            const total = this.getTotal();
+            const discount = parseFloat(document.getElementById('billDiscount')?.value || 0);
+            const finalTotal = Math.max(0, total - discount);
+
+            const transaction = {
+                items: cart.map(item => ({
+                    menuId: menuItems.find(m => m.id === item.itemId)?.menuId || null,
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.total,
+                    discount: item.discount || 0
+                })),
+                total: total,
+                discount: discount,
+                finalTotal: finalTotal
+            };
+
+            // Use cloud storage if available, otherwise localStorage
+            if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+                try {
+                    await CloudStorage.addTransaction(transaction);
+                    Storage.clearCart();
+                    this.renderCart();
+                    this.closePaymentModal();
+                    alert('Payment confirmed! Transaction saved to cloud.');
+                } catch (error) {
+                    console.error('Error saving transaction:', error);
+                    Storage.addTransaction(transaction);
+                    Storage.clearCart();
+                    this.renderCart();
+                    this.closePaymentModal();
+                    alert('Payment confirmed! Transaction saved locally.');
+                }
+            } else {
                 Storage.addTransaction(transaction);
                 Storage.clearCart();
                 this.renderCart();
                 this.closePaymentModal();
-                alert('Payment confirmed! Transaction saved locally.');
-            });
-        } else {
-            Storage.addTransaction(transaction);
-            Storage.clearCart();
-            this.renderCart();
-            this.closePaymentModal();
-            alert('Payment confirmed! Transaction saved.');
+                alert('Payment confirmed! Transaction saved.');
+            }
+            this.isProcessingPayment = false;
+        } catch (error) {
+            console.error('Error confirming payment:', error);
+            alert('Error confirming payment. Please try again.');
+            this.isProcessingPayment = false;
         }
     },
 

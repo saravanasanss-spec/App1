@@ -73,13 +73,21 @@ const Storage = {
         const items = this.getMenuItems();
         const index = items.findIndex(item => item.id === id);
         if (index !== -1) {
+            const currentItem = items[index];
+            const parsedPrice = (updatedItem && Object.prototype.hasOwnProperty.call(updatedItem, 'defaultPrice'))
+                ? Number(updatedItem.defaultPrice)
+                : currentItem.defaultPrice;
+            const parsedStock = (updatedItem && Object.prototype.hasOwnProperty.call(updatedItem, 'stock'))
+                ? Number(updatedItem.stock)
+                : currentItem.stock;
+
             items[index] = {
-                ...items[index],
-                menuId: updatedItem.menuId || items[index].menuId,
-                name: updatedItem.name || items[index].name,
-                image: updatedItem.image || items[index].image,
-                defaultPrice: parseFloat(updatedItem.defaultPrice) !== undefined ? parseFloat(updatedItem.defaultPrice) : items[index].defaultPrice,
-                stock: parseFloat(updatedItem.stock) !== undefined ? parseFloat(updatedItem.stock) : items[index].stock
+                ...currentItem,
+                menuId: updatedItem.menuId || currentItem.menuId,
+                name: updatedItem.name || currentItem.name,
+                image: updatedItem.image || currentItem.image,
+                defaultPrice: Number.isFinite(parsedPrice) ? parsedPrice : currentItem.defaultPrice,
+                stock: Number.isFinite(parsedStock) ? parsedStock : currentItem.stock
             };
             this.saveMenuItems(items);
             return items[index];
@@ -87,15 +95,25 @@ const Storage = {
         return null;
     },
 
-    updateStock(menuId, quantity) {
+    updateStock(identifier, quantity) {
         const items = this.getMenuItems();
-        const item = items.find(i => i.menuId === menuId);
-        if (item) {
-            item.stock = Math.max(0, (item.stock || 0) + quantity);
-            this.saveMenuItems(items);
-            return item;
+        let item = items.find(i => i.menuId === identifier);
+        if (!item) {
+            item = items.find(i => i.id === identifier);
         }
-        return null;
+        if (!item) {
+            throw new Error(`Menu item "${identifier}" was not found`);
+        }
+
+        const numericQuantity = Number(quantity);
+        if (!Number.isFinite(numericQuantity)) {
+            throw new Error('Quantity must be a valid number');
+        }
+
+        const startingStock = Number(item.stock) || 0;
+        item.stock = Math.max(0, startingStock + numericQuantity);
+        this.saveMenuItems(items);
+        return item;
     },
 
     deleteMenuItem(id) {

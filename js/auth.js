@@ -3,6 +3,15 @@
 const Auth = {
     currentUser: null,
     isAuthenticated: false,
+    canUseCloudDb() {
+        if (typeof CloudStorage === 'undefined' || !CloudStorage.isAvailable) {
+            return false;
+        }
+        if (typeof db === 'undefined' || !db) {
+            return false;
+        }
+        return true;
+    },
 
     init() {
         // Check if user is logged in (from sessionStorage)
@@ -73,7 +82,7 @@ const Auth = {
 
     // Get all users from cloud
     async getUsers() {
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+        if (this.canUseCloudDb()) {
             try {
                 const snapshot = await db.collection('users').get();
                 const users = [];
@@ -87,6 +96,7 @@ const Auth = {
                 return this.getUsersLocal();
             }
         } else {
+            console.warn('Cloud DB unavailable - using local users list');
             return this.getUsersLocal();
         }
     },
@@ -127,12 +137,15 @@ const Auth = {
         };
 
         // Save to cloud
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+        const canUseCloud = this.canUseCloudDb();
+        if (canUseCloud) {
             try {
                 await db.collection('users').doc(newUser.id).set(newUser);
             } catch (error) {
                 console.error('Error saving user to cloud:', error);
             }
+        } else {
+            console.warn('Cloud DB unavailable while creating user - saving locally only');
         }
 
         // Also save to localStorage
@@ -151,12 +164,15 @@ const Auth = {
             updatedBy: this.currentUser ? this.currentUser.id : 'system'
         };
 
-        if (typeof CloudStorage !== 'undefined' && CloudStorage.isAvailable) {
+        const canUseCloud = this.canUseCloudDb();
+        if (canUseCloud) {
             try {
                 await db.collection('users').doc(userId).update(updateData);
             } catch (error) {
                 console.error('Error updating user in cloud:', error);
             }
+        } else {
+            console.warn('Cloud DB unavailable while updating user - local data will be used');
         }
 
         // Update localStorage
